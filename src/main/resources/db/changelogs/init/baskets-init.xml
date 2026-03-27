@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Basket Service — baskets table
+        Author: hmyrak
+        UNIQUE on user_id enforces one active basket per user.
+        updated_at tracks session activity for TTL/cleanup jobs.
+        CASCADE DELETE on user_id: removing a user removes their basket.
+        Note: these tables will later be migrated to Redis (see baskets-drop-V001.xml).
+    -->
+    <changeSet id="004-create-baskets-table" author="hmyrak">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="baskets"/></not>
+        </preConditions>
+        <comment>Create baskets table for Basket Service (later migrated to Redis)</comment>
+
+        <createTable tableName="baskets">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_baskets"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false" unique="true" uniqueConstraintName="UQ_baskets_user"/>
+            </column>
+            <column name="created_at" type="DATETIME" defaultValueComputed="GETDATE()"/>
+            <column name="updated_at" type="DATETIME" defaultValueComputed="GETDATE()"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="baskets" baseColumnNames="user_id"
+                referencedTableName="users" referencedColumnNames="id"
+                constraintName="FK_baskets_user"
+                onDelete="CASCADE"/>
+
+        <!-- Index on updated_at for TTL / abandoned-cart cleanup queries -->
+        <createIndex tableName="baskets" indexName="idx_baskets_updated_at">
+            <column name="updated_at"/>
+        </createIndex>
+
+        <!-- ============================================================== -->
+        <!-- SYSTEM REGISTRATION — DO NOT MODIFY                            -->
+        <!-- ============================================================== -->
+        <sql>
+            INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+            VALUES ('liquibase_lab', 'baskets', 'DATA_TABLE', 'hmyrak', 1, 'basket_service',
+                    'Shopping cart header. UNIQUE user_id = one basket per user. To be migrated to Redis.',
+                    (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('baskets')),
+                    SYSUTCDATETIME(), NULL);
+        </sql>
+
+        <rollback>
+            <sql>DELETE FROM dbo.tables WHERE name = 'baskets';</sql>
+            <dropTable tableName="baskets"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

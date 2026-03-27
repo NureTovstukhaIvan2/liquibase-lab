@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Basket Service — basket_items table
+        Author: hmyrak
+        quantity DEFAULT 1: item is added with count 1, then updated via application.
+        added_at records moment of addition for analytics / abandoned-cart detection.
+        CASCADE DELETE on basket_id: clearing/deleting basket removes all items.
+        RESTRICT on product_id: cannot delete a product that is in someone's basket.
+    -->
+    <changeSet id="005-create-basket-items-table" author="hmyrak">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="basket_items"/></not>
+        </preConditions>
+        <comment>Create basket_items table for Basket Service</comment>
+
+        <createTable tableName="basket_items">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_basket_items"/>
+            </column>
+            <column name="basket_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="product_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="quantity" type="INT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="added_at" type="DATETIME" defaultValueComputed="GETDATE()"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="basket_items" baseColumnNames="basket_id"
+                referencedTableName="baskets" referencedColumnNames="id"
+                constraintName="FK_basket_items_basket"
+                onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint
+                baseTableName="basket_items" baseColumnNames="product_id"
+                referencedTableName="products" referencedColumnNames="id"
+                constraintName="FK_basket_items_product"
+                onDelete="RESTRICT"/>
+
+        <!-- Index on basket_id — most frequent query: get all items in a basket -->
+        <createIndex tableName="basket_items" indexName="idx_basket_items_basket_id">
+            <column name="basket_id"/>
+        </createIndex>
+
+        <!-- ============================================================== -->
+        <!-- SYSTEM REGISTRATION — DO NOT MODIFY                            -->
+        <!-- ============================================================== -->
+        <sql>
+            INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+            VALUES ('liquibase_lab', 'basket_items', 'DATA_TABLE', 'hmyrak', 1, 'basket_service',
+                    'Items in shopping cart. quantity DEFAULT 1. CASCADE on basket_id. To be migrated to Redis.',
+                    (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('basket_items')),
+                    SYSUTCDATETIME(), NULL);
+        </sql>
+
+        <rollback>
+            <sql>DELETE FROM dbo.tables WHERE name = 'basket_items';</sql>
+            <dropTable tableName="basket_items"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

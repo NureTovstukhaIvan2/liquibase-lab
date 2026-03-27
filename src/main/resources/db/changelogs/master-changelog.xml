@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- ============================================================= -->
+    <!--  INIT: Initial table creation                                  -->
+    <!--  CREATE TABLE changesets — parent tables before children       -->
+    <!-- ============================================================= -->
+
+    <!-- System meta-table (template) -->
+    <include file="init/tables-init.xml" relativeToChangelogFile="true"/>
+
+    <!-- User Service (author: tovstukha) -->
+    <include file="init/users-init.xml"          relativeToChangelogFile="true"/>
+    <include file="init/roles-init.xml"          relativeToChangelogFile="true"/>
+    <include file="init/user-role-init.xml"      relativeToChangelogFile="true"/>
+    <include file="init/users-indexes-init.xml"  relativeToChangelogFile="true"/>
+
+    <!-- Product Service (author: hmyrak) -->
+    <include file="init/categories-init.xml"       relativeToChangelogFile="true"/>
+    <include file="init/products-init.xml"          relativeToChangelogFile="true"/>
+    <include file="init/products-indexes-init.xml"  relativeToChangelogFile="true"/>
+
+    <!-- Order Service (author: tovstukha) -->
+    <include file="init/orders-init.xml"       relativeToChangelogFile="true"/>
+    <include file="init/order-items-init.xml"  relativeToChangelogFile="true"/>
+
+    <!-- Basket Service (author: hmyrak) -->
+    <include file="init/baskets-init.xml"       relativeToChangelogFile="true"/>
+    <include file="init/basket-items-init.xml"  relativeToChangelogFile="true"/>
+
+
+    <!-- ============================================================= -->
+    <!--  CHANGES: Schema modifications after init                     -->
+    <!-- ============================================================= -->
+
+    <!-- Order Service: denormalize for reporting (author: tovstukha) -->
+    <include file="changes/orders-change-V001.xml" relativeToChangelogFile="true"/>
+
+    <!-- Basket Service: drop tables migrated to Redis (author: hmyrak) -->
+    <include file="changes/baskets-drop-V001.xml" relativeToChangelogFile="true"/>
+
+
+    <!-- ============================================================= -->
+    <!--  DATA: Seed / demo data                                        -->
+    <!-- ============================================================= -->
+
+    <!-- User Service: role reference data (author: tovstukha) -->
+    <include file="data/roles-data-V001.xml" relativeToChangelogFile="true"/>
+
+    <!-- Product Service: demo catalog (author: hmyrak) -->
+    <include file="data/products-data-V001.xml" relativeToChangelogFile="true"/>
+
+
+    <!-- ============================================================= -->
+    <!--  TRIGGERS: Applied last, after all tables and data are ready   -->
+    <!-- ============================================================= -->
+
+    <!-- Order Service: status-change audit trigger (author: tovstukha) -->
+    <include file="triggers/trg-orders-audit.xml" relativeToChangelogFile="true"/>
+
+</databaseChangeLog>

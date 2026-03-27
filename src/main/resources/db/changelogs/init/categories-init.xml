@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Product Service — categories table
+        Author: hmyrak
+        Self-referencing Adjacency List Model for unlimited nesting depth.
+        parent_id = NULL denotes a root category.
+        ON DELETE SET NULL: deleting a parent makes children root-level (not orphaned).
+    -->
+    <changeSet id="001-create-categories-table" author="hmyrak">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="categories"/></not>
+        </preConditions>
+        <comment>Create categories table for Product Service (Adjacency List Model)</comment>
+
+        <createTable tableName="categories">
+            <column name="id" type="INT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_categories"/>
+            </column>
+            <column name="name" type="NVARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="parent_id" type="INT"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="categories" baseColumnNames="parent_id"
+                referencedTableName="categories" referencedColumnNames="id"
+                constraintName="FK_categories_parent"
+                onDelete="SET NULL"/>
+
+        <createIndex tableName="categories" indexName="idx_categories_parent_id">
+            <column name="parent_id"/>
+        </createIndex>
+
+        <!-- ============================================================== -->
+        <!-- SYSTEM REGISTRATION — DO NOT MODIFY                            -->
+        <!-- ============================================================== -->
+        <sql>
+            INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+            VALUES ('liquibase_lab', 'categories', 'REFERENCE_TABLE', 'hmyrak', 1, 'product_service',
+                    'Hierarchical product categories (Adjacency List). parent_id=NULL means root category.',
+                    (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('categories')),
+                    SYSUTCDATETIME(), NULL);
+        </sql>
+
+        <rollback>
+            <sql>DELETE FROM dbo.tables WHERE name = 'categories';</sql>
+            <dropTable tableName="categories"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
