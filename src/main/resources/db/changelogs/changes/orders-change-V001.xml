@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Order Service — denormalize orders for reporting performance
+        Author: tovstukha
+        Profiling revealed that report queries always JOIN orders→users (customer name)
+        and COUNT(order_items) per order. Adding items_count and customer_name as
+        materialized columns eliminates these JOINs for read-heavy report pages.
+        The UPDATE block back-fills existing rows immediately after the columns are added.
+        Explicit <rollback> is required because Liquibase cannot auto-generate
+        rollback for ADD COLUMN.
+    -->
+    <changeSet id="007-add-denormalized-fields-to-orders" author="tovstukha">
+        <comment>
+            Denormalize orders: add items_count and customer_name columns.
+            Avoids JOIN on users and COUNT on order_items in reporting queries.
+        </comment>
+
+        <addColumn tableName="orders">
+            <column name="items_count" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="customer_name" type="NVARCHAR(100)"/>
+        </addColumn>
+
+        <!-- Back-fill existing rows -->
+        <sql>
+            UPDATE o
+            SET o.items_count   = (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id),
+                o.customer_name = (SELECT u.username  FROM users u          WHERE u.id = o.user_id)
+            FROM orders o;
+        </sql>
+
+        <!-- Update metadata registry -->
+        <sql>
+            UPDATE dbo.tables
+            SET column_count  = (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('orders')),
+                version       = version + 1,
+                last_update_at = SYSUTCDATETIME()
+            WHERE name = 'orders';
+        </sql>
+
+        <rollback>
+            <dropColumn tableName="orders" columnName="items_count"/>
+            <dropColumn tableName="orders" columnName="customer_name"/>
+            <sql>
+                UPDATE dbo.tables
+                SET column_count   = (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('orders')),
+                    version        = version - 1,
+                    last_update_at = SYSUTCDATETIME()
+                WHERE name = 'orders';
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
