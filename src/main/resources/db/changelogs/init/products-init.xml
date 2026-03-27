@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Product Service — products table
+        Author: hmyrak
+        DECIMAL(12,2) for price avoids FLOAT rounding errors in financial math.
+        stock_quantity DEFAULT 0 — new product starts with zero stock.
+        ON DELETE RESTRICT on category_id: cannot delete a category that still has products.
+    -->
+    <changeSet id="002-create-products-table" author="hmyrak">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="products"/></not>
+        </preConditions>
+        <comment>Create products table for Product Service</comment>
+
+        <createTable tableName="products">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_products"/>
+            </column>
+            <column name="name" type="NVARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="NVARCHAR(MAX)"/>
+            <column name="price" type="DECIMAL(12,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stock_quantity" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="category_id" type="INT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="products" baseColumnNames="category_id"
+                referencedTableName="categories" referencedColumnNames="id"
+                constraintName="FK_products_category"
+                onDelete="RESTRICT"/>
+
+        <!-- ============================================================== -->
+        <!-- SYSTEM REGISTRATION — DO NOT MODIFY                            -->
+        <!-- ============================================================== -->
+        <sql>
+            INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+            VALUES ('liquibase_lab', 'products', 'DATA_TABLE', 'hmyrak', 1, 'product_service',
+                    'Product catalog. DECIMAL price avoids float errors. stock_quantity tracks inventory.',
+                    (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('products')),
+                    SYSUTCDATETIME(), NULL);
+        </sql>
+
+        <rollback>
+            <sql>DELETE FROM dbo.tables WHERE name = 'products';</sql>
+            <dropTable tableName="products"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

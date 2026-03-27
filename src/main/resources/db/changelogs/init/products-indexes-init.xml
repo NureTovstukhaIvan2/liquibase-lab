@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Product Service — indexes for products table
+        Author: hmyrak
+        category_id index speeds up "products by category" queries (most common read).
+        Composite index on (category_id, price) supports sorted catalog pages.
+    -->
+    <changeSet id="003-create-products-indexes" author="hmyrak">
+        <comment>Create performance indexes on products table</comment>
+
+        <createIndex tableName="products" indexName="idx_products_category_id">
+            <column name="category_id"/>
+        </createIndex>
+
+        <createIndex tableName="products" indexName="idx_products_category_price">
+            <column name="category_id"/>
+            <column name="price"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex tableName="products" indexName="idx_products_category_id"/>
+            <dropIndex tableName="products" indexName="idx_products_category_price"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
