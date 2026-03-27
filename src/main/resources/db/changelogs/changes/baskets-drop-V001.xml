@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Basket Service — migrate cart storage to Redis
+        Author: hmyrak
+        Redis (key-value store) outperforms RDBMS for high-frequency short-lived
+        session data like shopping carts. These two changesets remove the relational
+        tables. Drop order is critical: child table (basket_items) BEFORE parent (baskets).
+        preconditions onFail=HALT: hard stop if the expected table is absent — prevents
+        silent partial state and surfaces dependency failures immediately.
+        Explicit <rollback> recreates the tables if the migration is reversed.
+    -->
+
+    <!-- Step 1 of 2: drop the child table first -->
+    <changeSet id="006-drop-basket-items-table" author="hmyrak">
+        <preConditions onFail="HALT">
+            <tableExists schemaName="dbo" tableName="basket_items"/>
+        </preConditions>
+        <comment>Drop basket_items (step 1/2) — migrate cart to Redis</comment>
+
+        <sql>DELETE FROM dbo.tables WHERE name = 'basket_items';</sql>
+        <dropTable tableName="basket_items" cascadeConstraints="true"/>
+
+        <rollback>
+            <createTable tableName="basket_items">
+                <column name="id" type="BIGINT" autoIncrement="true">
+                    <constraints primaryKey="true" nullable="false" primaryKeyName="PK_basket_items"/>
+                </column>
+                <column name="basket_id" type="BIGINT"><constraints nullable="false"/></column>
+                <column name="product_id" type="BIGINT"><constraints nullable="false"/></column>
+                <column name="quantity" type="INT" defaultValueNumeric="1"><constraints nullable="false"/></column>
+                <column name="added_at" type="DATETIME" defaultValueComputed="GETDATE()"/>
+            </createTable>
+            <addForeignKeyConstraint
+                    baseTableName="basket_items" baseColumnNames="basket_id"
+                    referencedTableName="baskets" referencedColumnNames="id"
+                    constraintName="FK_basket_items_basket" onDelete="CASCADE"/>
+            <addForeignKeyConstraint
+                    baseTableName="basket_items" baseColumnNames="product_id"
+                    referencedTableName="products" referencedColumnNames="id"
+                    constraintName="FK_basket_items_product" onDelete="RESTRICT"/>
+            <createIndex tableName="basket_items" indexName="idx_basket_items_basket_id">
+                <column name="basket_id"/>
+            </createIndex>
+            <sql>
+                INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+                VALUES ('liquibase_lab', 'basket_items', 'DATA_TABLE', 'hmyrak', 1, 'basket_service',
+                        'Restored after rollback. Items in shopping cart.',
+                        (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('basket_items')),
+                        SYSUTCDATETIME(), NULL);
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- Step 2 of 2: drop the parent table -->
+    <changeSet id="007-drop-baskets-table" author="hmyrak">
+        <preConditions onFail="HALT">
+            <and>
+                <tableExists schemaName="dbo" tableName="baskets"/>
+                <not>
+                    <tableExists schemaName="dbo" tableName="basket_items"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Drop baskets (step 2/2) — migrate cart to Redis; basket_items must already be gone</comment>
+
+        <sql>DELETE FROM dbo.tables WHERE name = 'baskets';</sql>
+        <dropTable tableName="baskets" cascadeConstraints="true"/>
+
+        <rollback>
+            <createTable tableName="baskets">
+                <column name="id" type="BIGINT" autoIncrement="true">
+                    <constraints primaryKey="true" nullable="false" primaryKeyName="PK_baskets"/>
+                </column>
+                <column name="user_id" type="BIGINT">
+                    <constraints nullable="false" unique="true" uniqueConstraintName="UQ_baskets_user"/>
+                </column>
+                <column name="created_at" type="DATETIME" defaultValueComputed="GETDATE()"/>
+                <column name="updated_at" type="DATETIME" defaultValueComputed="GETDATE()"/>
+            </createTable>
+            <addForeignKeyConstraint
+                    baseTableName="baskets" baseColumnNames="user_id"
+                    referencedTableName="users" referencedColumnNames="id"
+                    constraintName="FK_baskets_user" onDelete="CASCADE"/>
+            <createIndex tableName="baskets" indexName="idx_baskets_updated_at">
+                <column name="updated_at"/>
+            </createIndex>
+            <sql>
+                INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+                VALUES ('liquibase_lab', 'baskets', 'DATA_TABLE', 'hmyrak', 1, 'basket_service',
+                        'Restored after rollback. Shopping cart header.',
+                        (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('baskets')),
+                        SYSUTCDATETIME(), NULL);
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
