@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Order Service — orders table
+        Author: tovstukha
+        Order header: references user, stores status lifecycle and total_amount.
+        total_amount is intentionally denormalized (avoids SUM on order_items per query).
+        status DEFAULT 'NEW'; transitions controlled at application layer.
+        onDelete RESTRICT on user_id: users with orders cannot be deleted.
+    -->
+    <changeSet id="005-create-orders-table" author="tovstukha">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="orders"/></not>
+        </preConditions>
+        <comment>Create orders table for Order Service</comment>
+
+        <createTable tableName="orders">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_orders"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="NVARCHAR(20)" defaultValue="NEW">
+                <constraints nullable="false"/>
+            </column>
+            <column name="total_amount" type="DECIMAL(14,2)" defaultValueNumeric="0.00"/>
+            <column name="created_at" type="DATETIME" defaultValueComputed="GETDATE()"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="orders" baseColumnNames="user_id"
+                referencedTableName="users" referencedColumnNames="id"
+                constraintName="FK_orders_user"
+                onDelete="RESTRICT"/>
+
+        <createIndex tableName="orders" indexName="idx_orders_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <createIndex tableName="orders" indexName="idx_orders_status">
+            <column name="status"/>
+        </createIndex>
+
+        <!-- ============================================================== -->
+        <!-- SYSTEM REGISTRATION — DO NOT MODIFY                            -->
+        <!-- ============================================================== -->
+        <sql>
+            INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+            VALUES ('liquibase_lab', 'orders', 'DATA_TABLE', 'tovstukha', 1, 'order_service',
+                    'Order headers. status: NEW->PROCESSING->SHIPPED->DELIVERED/CANCELLED. total_amount is denormalized.',
+                    (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('orders')),
+                    SYSUTCDATETIME(), NULL);
+        </sql>
+
+        <rollback>
+            <sql>DELETE FROM dbo.tables WHERE name = 'orders';</sql>
+            <dropTable tableName="orders"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
