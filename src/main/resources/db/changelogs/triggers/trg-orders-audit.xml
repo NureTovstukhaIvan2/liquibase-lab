@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Order Service — audit trigger for status transitions
+        Author: tovstukha
+        Business requirement: full history of order status changes for dispute resolution.
+        DB-level trigger fires even on direct SQL updates (bypassing the application).
+        splitStatements="false" keeps the CREATE TRIGGER DDL as a single statement.
+        IF UPDATE(status) prevents spurious audit records on non-status updates.
+        inserted/deleted are MS SQL Server pseudo-tables available inside triggers.
+    -->
+    <changeSet id="008-create-orders-audit-trigger" author="tovstukha">
+        <comment>
+            Create orders_audit_log table and trg_orders_status_audit trigger.
+            Captures every status transition: old_status -> new_status with timestamp.
+        </comment>
+
+        <!-- Audit log table must be created before the trigger that writes to it -->
+        <createTable tableName="orders_audit_log">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_orders_audit_log"/>
+            </column>
+            <column name="order_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="old_status" type="NVARCHAR(20)"/>
+            <column name="new_status" type="NVARCHAR(20)"/>
+            <column name="changed_at" type="DATETIME" defaultValueComputed="GETDATE()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Register audit log table in metadata registry -->
+        <sql>
+            INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+            VALUES ('liquibase_lab', 'orders_audit_log', 'AUDIT_TABLE', 'tovstukha', 1, 'order_service',
+                    'Audit log of order status transitions. Populated by trg_orders_status_audit.',
+                    (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('orders_audit_log')),
+                    SYSUTCDATETIME(), NULL);
+        </sql>
+
+        <!-- Trigger: fires AFTER UPDATE on orders, logs status changes only -->
+        <sql splitStatements="false">
+CREATE TRIGGER trg_orders_status_audit
+ON orders
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF UPDATE(status)
+    BEGIN
+        INSERT INTO orders_audit_log (order_id, old_status, new_status)
+        SELECT d.id,
+               d.status AS old_status,
+               i.status AS new_status
+        FROM   deleted  AS d
+        JOIN   inserted AS i ON d.id = i.id
+        WHERE  d.status != i.status;
+    END
+END;
+        </sql>
+
+        <rollback>
+            <sql>DROP TRIGGER IF EXISTS trg_orders_status_audit;</sql>
+            <sql>DELETE FROM dbo.tables WHERE name = 'orders_audit_log';</sql>
+            <dropTable tableName="orders_audit_log"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

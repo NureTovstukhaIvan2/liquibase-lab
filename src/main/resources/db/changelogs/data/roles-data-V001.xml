@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        User Service — seed data for roles table
+        Author: tovstukha
+        precondition onFail=HALT: hard stop if roles table does not exist or
+        already has rows — prevents duplicate seed data and surfaces missing
+        prerequisite migrations immediately.
+    -->
+    <changeSet id="001-insert-roles-data" author="tovstukha">
+        <preConditions onFail="HALT">
+            <and>
+                <tableExists schemaName="dbo" tableName="roles"/>
+                <sqlCheck expectedResult="0">SELECT COUNT(*) FROM dbo.roles</sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Seed reference data: USER, ADMIN, MODERATOR roles</comment>
+
+        <insert tableName="roles">
+            <column name="id" valueNumeric="1"/>
+            <column name="name" value="USER"/>
+            <column name="description" value="Registered customer — can browse and place orders"/>
+        </insert>
+        <insert tableName="roles">
+            <column name="id" valueNumeric="2"/>
+            <column name="name" value="ADMIN"/>
+            <column name="description" value="System administrator — full access to all resources"/>
+        </insert>
+        <insert tableName="roles">
+            <column name="id" valueNumeric="3"/>
+            <column name="name" value="MODERATOR"/>
+            <column name="description" value="Content moderator — manages product catalog and reviews"/>
+        </insert>
+
+        <rollback>
+            <delete tableName="roles">
+                <where>id IN (1, 2, 3)</where>
+            </delete>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
