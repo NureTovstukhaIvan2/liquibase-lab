@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Product Service — seed data: categories and products
+        Author: hmyrak
+        precondition onFail=HALT: hard stop if categories or products tables are
+        missing, or categories already contains rows — ensures init/ migrations
+        have been applied and prevents duplicate seed data.
+        Insert order: root category first, then sub-categories, then products (FK chain).
+    -->
+    <changeSet id="001-insert-products-data" author="hmyrak">
+        <preConditions onFail="HALT">
+            <and>
+                <tableExists schemaName="dbo" tableName="categories"/>
+                <tableExists schemaName="dbo" tableName="products"/>
+                <sqlCheck expectedResult="0">SELECT COUNT(*) FROM dbo.categories</sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Seed demo catalog: Electronics category + 2 products</comment>
+
+        <!-- Root category -->
+        <insert tableName="categories">
+            <column name="id" valueNumeric="1"/>
+            <column name="name" value="Electronics"/>
+        </insert>
+        <!-- Sub-categories -->
+        <insert tableName="categories">
+            <column name="id" valueNumeric="2"/>
+            <column name="name" value="Laptops"/>
+            <column name="parent_id" valueNumeric="1"/>
+        </insert>
+        <insert tableName="categories">
+            <column name="id" valueNumeric="3"/>
+            <column name="name" value="Smartphones"/>
+            <column name="parent_id" valueNumeric="1"/>
+        </insert>
+
+        <!-- Products -->
+        <insert tableName="products">
+            <column name="id" valueNumeric="1"/>
+            <column name="name" value="ASUS VivoBook 15"/>
+            <column name="description" value="15.6-inch laptop, Intel Core i5, 16 GB RAM, 512 GB SSD"/>
+            <column name="price" valueNumeric="28999.00"/>
+            <column name="stock_quantity" valueNumeric="15"/>
+            <column name="category_id" valueNumeric="2"/>
+        </insert>
+        <insert tableName="products">
+            <column name="id" valueNumeric="2"/>
+            <column name="name" value="Samsung Galaxy A55"/>
+            <column name="description" value="6.6-inch AMOLED, 8 GB RAM, 256 GB storage, 50 MP camera"/>
+            <column name="price" valueNumeric="14499.00"/>
+            <column name="stock_quantity" valueNumeric="40"/>
+            <column name="category_id" valueNumeric="3"/>
+        </insert>
+
+        <rollback>
+            <delete tableName="products"><where>id IN (1, 2)</where></delete>
+            <delete tableName="categories"><where>id IN (1, 2, 3)</where></delete>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
