@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        User Service — users table
+        Author: tovstukha
+        Stores user accounts: login credentials, email, soft-delete flag.
+        password_hash stores BCrypt hash (60 chars), never plain text.
+        is_active = 1 (active), 0 (soft-deleted) — preserves related orders.
+    -->
+    <changeSet id="001-create-users-table" author="tovstukha">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="users"/></not>
+        </preConditions>
+        <comment>Create users table for User Service</comment>
+
+        <createTable tableName="users">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_users"/>
+            </column>
+            <column name="username" type="NVARCHAR(50)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="UQ_users_username"/>
+            </column>
+            <column name="email" type="NVARCHAR(100)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="UQ_users_email"/>
+            </column>
+            <column name="password_hash" type="NVARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME" defaultValueComputed="GETDATE()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_active" type="BIT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- ============================================================== -->
+        <!-- SYSTEM REGISTRATION — DO NOT MODIFY                            -->
+        <!-- ============================================================== -->
+        <sql>
+            INSERT INTO dbo.tables (db_, name, type, author, version, service, description, column_count, created_at, last_update_at)
+            VALUES ('liquibase_lab', 'users', 'DATA_TABLE', 'tovstukha', 1, 'user_service',
+                    'User accounts. password_hash stores BCrypt. is_active enables soft-delete.',
+                    (SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID('users')),
+                    SYSUTCDATETIME(), NULL);
+        </sql>
+
+        <rollback>
+            <sql>DELETE FROM dbo.tables WHERE name = 'users';</sql>
+            <dropTable tableName="users"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
